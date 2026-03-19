@@ -1,0 +1,300 @@
+SHOW databases;
+CREATE database myData;
+USE myData;
+SELECT * FROM `loanapproval.csv`; 
+RENAME TABLE `loanapproval.csv` TO loanapproval;
+
+-- DATA PREVIEW
+SELECT * FROM `loanapproval`
+LIMIT 50; 
+
+-- ROW COUNT
+SELECT count(*) FROM `loanapproval`;
+SELECT distinct applicant_id 
+FROM `loanapproval`;
+
+describe `loanapproval`;
+
+-- DUPLICATE CHECK
+SELECT applicant_id, count(*)
+FROM `loanapproval`
+GROUP BY applicant_id
+having count(*)>1;
+
+-- NULL VALUES
+SELECT 
+    *
+FROM
+    `loanapproval`
+WHERE
+    annual_income IS NULL
+        OR loan_amount IS NULL
+        OR credit_score IS NULL
+        OR existing_loans_count IS NULL
+        OR employment_status IS NULL
+        OR loan_approved IS NULL;
+  
+  -- Minimum & Maximum Age
+SELECT 
+    MIN(age), MAX(age)
+FROM
+    loanapproval;  
+  
+-- labeling as invalid, normal or suspicious = data validation
+
+ALTER TABLE loanapproval
+ADD COLUMN age_validation varchar(20);
+UPDATE loanapproval
+SET age_validation =
+	CASE 
+		WHEN age<18 THEN 'Invalid'
+        WHEN age BETWEEN 18 AND 65 THEN 'Normal'
+		ELSE 'Suspicious'
+        END;
+
+-- age segmentation
+ALTER TABLE loanapproval
+ADD COLUMN applicant_category varchar(20);
+UPDATE loanapproval
+SET applicant_category =
+	CASE 
+		WHEN age<18 then 'Invalid'
+        WHEN age BETWEEN 18 AND 25 then 'Early Career'
+		WHEN age BETWEEN 26 AND 35 then 'Young Professionals'
+		WHEN age BETWEEN 36 AND 45 then 'Mid Career'
+        WHEN age BETWEEN 46 AND 60 then 'Experienced'
+        ELSE 'Senior Applicant'
+        END;
+        
+SELECT min(credit_score), max(credit_score) FROM loanapproval;
+
+-- CREDIT SCORE BAND
+ALTER TABLE loanapproval
+ADD COLUMN credit_score_band varchar(20);
+UPDATE loanapproval
+SET credit_score_band =
+	CASE
+		WHEN credit_score<300 then 'Invalid'
+        WHEN credit_score BETWEEN 300 AND 579 then 'Poor'
+		WHEN credit_score BETWEEN 580 AND 669 then 'Fair'
+		WHEN credit_score BETWEEN 670 AND 739 then 'Good'
+        WHEN credit_score BETWEEN 740 AND 799 then 'Very Good'
+        WHEN credit_score BETWEEN 800 AND 850 then 'Excellent'
+        END;
+        
+-- INCOME BAND
+SELECT min(annual_income), max(annual_income) FROM loanapproval;
+ALTER TABLE loanapproval
+ADD COLUMN annual_income_band varchar(20);
+UPDATE loanapproval
+SET annual_income_band =
+	CASE
+		WHEN annual_income < 40000 THEN 'Low Income'
+        WHEN annual_income BETWEEN 40001 AND 70000 THEN 'Lower Middle Income'
+        WHEN annual_income BETWEEN 70001 AND 100000 THEN 'Middle Income'
+        WHEN annual_income BETWEEN 100001 AND 130000 THEN 'Upper Income'
+        WHEN annual_income > 130001 THEN 'High Income'
+        END;
+-- LOAN AMOUNT BAND
+SELECT min(loan_amount), max(loan_amount) FROM loanapproval;
+ALTER TABLE loanapproval
+ADD COLUMN loan_amount_band varchar(20);
+UPDATE loanapproval
+SET loan_amount_band =
+	CASE
+		WHEN loan_amount < 15000 THEN 'Small Loan'
+        WHEN loan_amount BETWEEN 15001 AND 30000 THEN 'Lower Middle Loan'
+        WHEN loan_amount BETWEEN 30001 AND 45000 THEN 'Medium Loan'
+        WHEN loan_amount BETWEEN 45001 AND 60000 THEN 'Large Loan'
+        WHEN loan_amount > 60001 THEN 'Very Large Loan'
+        END;
+    
+-- No. of Dependents
+SELECT min(num_dependents), max(num_dependents) FROM loanapproval;
+ALTER TABLE loanapproval
+ADD COLUMN Dependent_band varchar(20);
+UPDATE loanapproval
+SET Dependent_band =
+	CASE
+		WHEN num_dependents < 1 THEN 'Small Family'
+        WHEN num_dependents BETWEEN 2 AND 3 THEN 'Medium Family'
+		ELSE 'High Responsibility'
+        END; 
+        
+-- AFORDABILITY RATIO
+ALTER TABLE loanapproval
+ADD COLUMN affordability_ratio DECIMAL(5,2);
+
+ALTER TABLE loanapproval
+MODIFY affordability_ratio DECIMAL(8,2);
+UPDATE loanapproval
+SET affordability_ratio = 
+    ROUND(CAST(loan_amount AS DECIMAL(12,4))/CAST(annual_income AS DECIMAL(12,4)), 2);
+
+SELECT loan_amount, annual_income, 
+cast(loan_amount AS decimal(10,2))/annual_income AS Test_Ratio
+FROM loanapproval
+LIMIT 10;
+
+SELECT distinct
+    affordability_ratio
+FROM
+    loanapproval
+LIMIT 10;
+
+SELECT DISTINCT affordability_ratio 
+FROM loanapproval;
+-- AFFORDABILITY BAND
+SELECT min(affordability_ratio), max(affordability_ratio) 
+FROM loanapproval;
+
+ALTER table loanapproval
+ADD COLUMN affordability_band varchar(20);
+UPDATE loanapproval
+SET affordability_band =
+	CASE 
+		WHEN affordability_ratio> 0.25 THEN 'Low Exposure'
+		WHEN affordability_ratio BETWEEN 0.25 AND 0.50 THEN 'Moderate Exposure'
+		WHEN affordability_ratio BETWEEN 0.50 AND 0.1 THEN 'High Exposure'
+		WHEN affordability_ratio BETWEEN 1.00 AND 1.50 THEN 'Very High Exposure'
+        ELSE 'Extreme Exposure'
+        END;
+        
+-- DEBT PRESSURE LEVEL
+ALTER TABLE loanapproval
+ADD COLUMN debt_status varchar(20);
+UPDATE loanapproval
+SET debt_status =
+	CASE 
+		WHEN loan_approved = 0 then 'No active loan'
+		WHEN loan_approved = 1 then 'active loan'
+        END;
+SELECT min(loan_approved), max(loan_approved) FROM loanapproval;
+SELECT distinct employment_status FROM loanapproval;
+
+ALTER table loanapproval
+ADD COLUMN employment_stability_group varchar(20);
+UPDATE loanapproval
+SET employment_stability_group =
+		CASE
+            WHEN employment_status = 'unemployed' then 'Income Risk'
+			WHEN employment_status = 'employed' then 'Stable Income'
+            WHEN employment_status = 'Self-employed' then 'Variable Income'
+            END;
+            
+SELECT DISTINCT credit_score_band, affordability_band, employment_stability_group FROM
+loanapproval;
+
+ALTER TABLE loanapproval	
+ADD COLUMN credit_score_points	int;
+UPDATE loanapproval
+SET credit_score_points =
+	CASE 
+		WHEN credit_score_band = 'Poor' THEN 4
+        WHEN credit_score_band = 'Fair' THEN 3
+		WHEN credit_score_band = 'Good' THEN 2
+        WHEN credit_score_band = 'Very Good' THEN 1
+        WHEN credit_score_band = 'Excellent' THEN 0
+        ELSE 'NULL'
+	END;
+    
+ALTER TABLE loanapproval	
+ADD COLUMN exposure_points	int;
+UPDATE loanapproval
+SET exposure_points =
+	CASE 
+		WHEN affordability_band = 'Extreme Exposure' THEN 2
+		WHEN affordability_band = 'Moderate Exposure' THEN 1
+        WHEN affordability_band = 'Low Exposure' THEN 0
+        Else 'NULL'
+	END;
+    
+ALTER TABLE loanapproval	
+ADD COLUMN employment_points int;
+UPDATE loanapproval
+SET employment_points =
+	CASE 
+		WHEN employment_stability_group = 'Income Risk' THEN 2
+		WHEN employment_stability_group = 'Variable Income' THEN 1
+        WHEN employment_stability_group = 'Stable Income' THEN 0
+        Else 'NULL'
+	END;
+	
+ALTER table loanapproval
+ADD COLUMN total_risk_score INT;
+UPDATE loanapproval
+SET total_risk_score = credit_score_points + exposure_points + employment_points;
+
+SELECT total_risk_score, COUNT(*)
+FROM loanapproval
+GROUP BY total_risk_score
+ORDER BY total_risk_score DESC;
+
+        
+ALTER table loanapproval
+ADD COLUMN Risk_category varchar(20);
+UPDATE loanapproval
+SET Risk_category =
+	CASE
+		WHEN total_risk_score BETWEEN 0 AND 2 THEN 'Low Risk'
+        WHEN total_risk_score BETWEEN 3 AND 4 THEN 'Moderate Risk'
+        WHEN total_risk_score BETWEEN 5 AND 6 THEN 'High Risk'
+        WHEN total_risk_score BETWEEN 7 AND 8 THEN 'Critical Risk'
+        Else Null
+        END;
+        
+select Risk_category, COUNT(*)
+FROM loanapproval
+GROUP BY Risk_category;
+
+SELECT affordability_band, exposure_points, COUNT(*)
+FROM loanapproval
+GROUP BY exposure_points, affordability_band
+ORDER BY exposure_points desc;
+
+SELECT credit_score_band, credit_score_points, COUNT(*)
+FROM loanapproval
+GROUP BY credit_score_band, credit_score_points
+ORDER BY credit_score_points DESC;
+
+SELECT DISTINCT employment_stability_group from
+loanapproval;
+SELECT MIN(credit_score_points), MAX(credit_score_points)
+FROM loanapproval;
+
+SELECT MIN(exposure_points), MAX(exposure_points)
+FROM loanapproval;
+
+SELECT MIN(exposure_points), MAX(exposure_points)
+FROM loanapproval;
+
+SHOW COLUMNS FROM loanapproval LIKE 'total_risk_score';
+
+-- Avg Approval 
+SELECT ROUND(AVG(loan_approved)*100, 2) AS approval_rate
+FROM loanapproval;
+
+-- Approval Rate by Risk Category
+SELECT risk_category, COUNT(*) AS total_applications,
+sum(loan_approved) AS approved_count,
+ROUND(AVG(loan_approved) * 100, 2) AS approval_rate_percent
+FROM loanapproval
+GROUP BY risk_category
+ORDER BY approval_rate_percent DESC;
+
+SELECT  
+applicant_id,  
+age,  
+annual_income,  
+annual_income_band,  
+loan_amount,
+loan_amount_band,  
+affordability_band,  
+credit_score_band,  
+employment_stability_group,  
+dependent_band,  
+debt_status,  
+total_risk_score,  
+risk_category,  
+loan_approved  
+FROM loanapproval;
